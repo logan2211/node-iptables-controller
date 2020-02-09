@@ -56,7 +56,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: iptables
-          image: logan2211/node-iptables-controller:latest
+          image: logan2211/node-iptables-controller:v0.1
           env:
             - name: IPTABLES_INPUT_HOOK
               value: KUBETABLES_CONTROLLER_INPUT
