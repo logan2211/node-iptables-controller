@@ -88,22 +88,21 @@ function sync_configmap_rules {
     check_apply_hooks "${IPTABLES_CMD[$1]}"
 }
 
-reset_sync
 ITERS=0
 echo "Starting iptables-sync"
 while true; do
-    check_sync_configmap
+    if [ "$ITERS" -eq 0 ] || [ "$ITERS" -ge "$IPTABLES_FULL_RESYNC_ITERS" ]; then
+        echo "Forcing full resync"
+        reset_sync
+        ITERS=0
+    fi
 
+    check_sync_configmap
     for ruleset in "${!IPTABLES_CMD[@]}"; do
         check_apply_hooks "${IPTABLES_CMD[$ruleset]}"
     done
 
     ITERS=$(($ITERS+1))
-    if [ "$ITERS" -ge "$IPTABLES_FULL_RESYNC_ITERS" ]; then
-        echo "Queueing full resync next run"
-        reset_sync
-    fi
-
     echo "Sync complete. Next sync in $IPTABLES_SYNC_INTERVAL"
     sleep "$IPTABLES_SYNC_INTERVAL"
 done
