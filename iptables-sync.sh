@@ -8,12 +8,6 @@ IPTABLES_SYNC_INTERVAL="${IPTABLES_SYNC_INTERVAL:-1m}"
 IPTABLES_FULL_RESYNC_ITERS="${IPTABLES_FULL_RESYNC_ITERS:-5}"
 IPTABLES_RULES_CONFIGMAP="${IPTABLES_RULES_CONFIGMAP:-iptables-rules}"
 
-# Policies on base chains will be asserted if set
-# Note the policy is applied on both v4 and v6
-# IPTABLES_INPUT_POLICY=ACCEPT
-# IPTABLES_FORWARD_POLICY=ACCEPT
-# IPTABLES_OUTPUT_POLICY=ACCEPT
-
 # Apply hooks into user chains
 # This will apply a rule to the INPUT chain like
 # -A INPUT -j KUBETABLES_CONTROLLER_INPUT
@@ -76,17 +70,6 @@ function sync_configmap_rules {
     CHECKSUMS[$1]="$rules_checksum"
 }
 
-function assert_chain_policy {
-    for chain in INPUT FORWARD OUTPUT; do
-        local var="IPTABLES_${chain}_POLICY"
-        if [ -n "${!var}" ]; then
-            echo "Asserting ${!var} policy on ${chain} chain"
-            iptables -P "${chain}" "${!var}"
-            ip6tables -P "${chain}" "${!var}"
-        fi
-    done
-}
-
 function check_apply_hooks {
     # Add hooks to the base chains into the entrypoint chains
     local iptables_base_cmd="${1:-iptables}"
@@ -121,7 +104,6 @@ while true; do
     check_sync_configmap
     check_apply_hooks iptables
     check_apply_hooks ip6tables
-    assert_chain_policy
 
     ITERS=$(($ITERS+1))
     if [ "$ITERS" -ge "$IPTABLES_FULL_RESYNC_ITERS" ]; then
