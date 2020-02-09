@@ -25,7 +25,6 @@ declare -A UPDATE_CMD=(
 
 function reset_sync {
     unset OLD_CONFIGMAP_REVISION
-    declare -A CHECKSUMS=()
 }
 
 function check_sync_configmap {
@@ -49,25 +48,16 @@ function check_sync_configmap {
 }
 
 function sync_configmap_rules {
-    echo "Running sync for $1 from ${IPTABLES_RULES_CONFIGMAP}"
+    echo "Applying rules for $1 from ${IPTABLES_RULES_CONFIGMAP}"
     local rules=$(kubectl get "configmap/${IPTABLES_RULES_CONFIGMAP}" \
         -o jsonpath="{.data.${1}}")
 
     if [ -z "$rules" ]; then
+        echo "No rules found for $1"
         return
     fi
 
-    local rules_checksum="$(echo -n \"${rules}\" | md5sum - | awk '{ print $1 }')"
-
-    if [ "$rules_checksum" = "${CHECKSUMS[$1]}" ]; then
-        echo "No changes found"
-        return
-    fi
-
-    # The rules have been updated
-    echo "Rules have been updated. Old checksum: ${CHECKSUMS[$1]}, new checksum: $rules_checksum"
     echo "${rules}" | ${UPDATE_CMD[$1]}
-    CHECKSUMS[$1]="$rules_checksum"
 }
 
 function check_apply_hooks {
