@@ -18,46 +18,13 @@ IPTABLES_RULES_CONFIGMAP="${IPTABLES_RULES_CONFIGMAP:-iptables-rules}"
 # Set to either "insert" or "append"
 IPTABLES_HOOK_MODE="${IPTABLES_HOOK_MODE:-append}"
 
-declare -A UPDATE_CMD=(
-    ["ipv4"]="iptables-restore -n"
-    ["ipv6"]="ip6tables-restore -n"
+declare -A IPTABLES_CMD=(
+    ["ipv4"]="iptables"
+    ["ipv6"]="ip6tables"
 )
 
 function reset_sync {
     unset OLD_CONFIGMAP_REVISION
-}
-
-function check_sync_configmap {
-    echo "Beginning iptables sync run"
-    CM_CURRENT_REV=$(kubectl get "configmap/${IPTABLES_RULES_CONFIGMAP}" \
-        -o jsonpath='{.metadata.resourceVersion}')
-
-    if [[ -z "$CM_CURRENT_REV" ]]; then
-        echo "Failed to get configmap revision"
-        return
-    fi
-
-    if [[ "$OLD_CONFIGMAP_REVISION" -ne "$CM_CURRENT_REV" ]]; then
-        echo "Configmap revision changed from $OLD_CONFIGMAP_REVISION to $CM_CURRENT_REV"
-        # Revision changed, sync rules
-        for ruleset in "${!UPDATE_CMD[@]}"; do
-            sync_configmap_rules "$ruleset"
-        done
-        OLD_CONFIGMAP_REVISION="$CM_CURRENT_REV"
-    fi
-}
-
-function sync_configmap_rules {
-    echo "Applying rules for $1 from ${IPTABLES_RULES_CONFIGMAP}"
-    local rules=$(kubectl get "configmap/${IPTABLES_RULES_CONFIGMAP}" \
-        -o jsonpath="{.data.${1}}")
-
-    if [ -z "$rules" ]; then
-        echo "No rules found for $1"
-        return
-    fi
-
-    echo "${rules}" | ${UPDATE_CMD[$1]}
 }
 
 function check_apply_hooks {
@@ -87,13 +54,45 @@ function check_apply_hooks {
     done
 }
 
+function check_sync_configmap {
+    echo "Beginning iptables sync run"
+    CM_CURRENT_REV=$(kubectl get "configmap/${IPTABLES_RULES_CONFIGMAP}" \
+        -o jsonpath='{.metadata.resourceVersion}')
+
+    if [[ -z "$CM_CURRENT_REV" ]]; then
+        echo "Failed to get configmap revision"
+        return
+    fi
+
+    if [[ "$OLD_CONFIGMAP_REVISION" -ne "$CM_CURRENT_REV" ]]; then
+        echo "Configmap revision changed from $OLD_CONFIGMAP_REVISION to $CM_CURRENT_REV"
+        # Revision changed, sync rules
+        for ruleset in "${!IPTABLES_CMD[@]}"; do
+            sync_configmap_rules "$ruleset"
+        done
+        OLD_CONFIGMAP_REVISION="$CM_CURRENT_REV"
+    fi
+}
+
+function sync_configmap_rules {
+    echo "Applying rules for $1 from ${IPTABLES_RULES_CONFIGMAP}"
+    local rules=$(kubectl get "configmap/${IPTABLES_RULES_CONFIGMAP}" \
+        -o jsonpath="{.data.${1}}")
+
+    if [ -z "$rules" ]; then
+        echo "No rules found for $1"
+        return
+    fi
+
+    echo "${rules}" | "${IPTABLES_CMD[$1]}-restore" --noflush
+    check_apply_hooks "${IPTABLES_CMD[$1]}"
+}
+
 reset_sync
 ITERS=0
 echo "Starting iptables-sync"
 while true; do
     check_sync_configmap
-    check_apply_hooks iptables
-    check_apply_hooks ip6tables
 
     ITERS=$(($ITERS+1))
     if [ "$ITERS" -ge "$IPTABLES_FULL_RESYNC_ITERS" ]; then
