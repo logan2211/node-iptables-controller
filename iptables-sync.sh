@@ -94,6 +94,10 @@ echo "Starting iptables-sync"
 while true; do
     check_sync_configmap
 
+    for ruleset in "${!IPTABLES_CMD[@]}"; do
+        check_apply_hooks "${IPTABLES_CMD[$ruleset]}"
+    done
+
     ITERS=$(($ITERS+1))
     if [ "$ITERS" -ge "$IPTABLES_FULL_RESYNC_ITERS" ]; then
         echo "Queueing full resync next run"
