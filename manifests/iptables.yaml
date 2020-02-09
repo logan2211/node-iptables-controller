@@ -1,0 +1,67 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: node-iptables
+  namespace: kube-system
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - iptables-rules
+  resources:
+  - configmaps
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: node-iptables
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: node-iptables
+subjects:
+- kind: User
+  name: "system:serviceaccount:kube-system:node-iptables"
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-iptables
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-iptables
+  namespace: kube-system
+  labels:
+    k8s-app: node-iptables
+spec:
+  selector:
+    matchLabels:
+      name: node-iptables
+  template:
+    metadata:
+      labels:
+        name: node-iptables
+    spec:
+      serviceAccountName: node-iptables
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      containers:
+        - name: iptables
+          image: logan2211/node-iptables-controller:latest
+          env:
+            - name: IPTABLES_INPUT_HOOK
+              value: KUBETABLES_CONTROLLER_INPUT
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+      hostNetwork: true

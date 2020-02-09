@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+
+# See https://docs.docker.com/docker-cloud/builds/advanced/
+
+# printenv
+# env
+
+if [ "${SOURCE_BRANCH}" = "master" ]; then
+    BRANCH=latest
+else
+    BRANCH="$SOURCE_BRANCH"
+fi
+
+docker build \
+    --build-arg=VERSION=$BRANCH \
+    -t $IMAGE_NAME \
+    -t $DOCKER_REPO:$SOURCE_COMMIT \
+    -f $DOCKERFILE_PATH .
+
+docker push $DOCKER_REPO:$SOURCE_COMMIT
